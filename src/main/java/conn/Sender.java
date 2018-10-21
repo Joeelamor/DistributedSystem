@@ -2,10 +2,11 @@ package conn;
 
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Sender implements Runnable {
-    private ConcurrentLinkedQueue<Message> queue;
+    private ConcurrentLinkedQueue<Serializable> queue;
     private ObjectOutputStream outputStream;
 
     public Sender(ObjectOutputStream outputStream) {
@@ -28,7 +29,7 @@ public class Sender implements Runnable {
         }
     }
 
-    public void send(Message message) {
+    public void send(Serializable message) {
         this.queue.offer(message);
     }
 }

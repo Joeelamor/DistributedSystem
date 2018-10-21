@@ -2,13 +2,14 @@ package conn;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.io.Serializable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Receiver implements Runnable {
     private ObjectInputStream inputStream;
-    private ConcurrentLinkedQueue<Message> queue;
+    private ConcurrentLinkedQueue<Serializable> queue;
 
-    public Receiver(ObjectInputStream inputStream, ConcurrentLinkedQueue<Message> queue) {
+    public Receiver(ObjectInputStream inputStream, ConcurrentLinkedQueue<Serializable> queue) {
         this.inputStream = inputStream;
         this.queue = queue;
     }
@@ -17,7 +18,7 @@ public class Receiver implements Runnable {
     public void run() {
         try {
             while (true) {
-                Message message = (Message) this.inputStream.readObject();
+                Serializable message = (Serializable) this.inputStream.readObject();
                 queue.offer(message);
             }
         } catch (IOException e) {
