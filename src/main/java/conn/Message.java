@@ -6,31 +6,21 @@ import java.util.Map;
 public class Message implements Serializable {
 
   public enum MessageType {
-    HELLO, TC, DATA
+    INIT, HELLO, TC, DATA
   }
-
 
   MessageType type;
   private int senderId;
-  public Map<Integer, Integer> neighbors;
+  Serializable dataload;
 
-  public Message(int senderId, Map<Integer, Integer> neighbors) {
+  public Message(MessageType type, int senderId, Serializable dataload) {
+    this.type = type;
     this.senderId = senderId;
-    this.neighbors = neighbors;
+    this.dataload = dataload;
   }
 
   public int getSenderId() {
     return senderId;
   }
 
-  public Map<Integer, Integer> getNeighbors() {
-    return neighbors;
-  }
-
-  @Override
-  public String toString() {
-    return "conn.Message{" +
-      "senderId=" + senderId +
-      '}';
-  }
 }
