@@ -8,15 +8,16 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class SimpleConn implements Conn {
-  private ConcurrentHashMap<Integer, Sender> senderMap;
-  private ConcurrentLinkedQueue<Serializable> messageQueue;
-  protected int nodeId;
+  ConcurrentHashMap<Integer, Sender> senderMap;
+  private ConcurrentLinkedQueue<Message> messageQueue;
+  int nodeId;
 
   public SimpleConn(int nodeId, int port) throws IOException {
     ServerSocket listener = new ServerSocket(port);
@@ -109,7 +110,7 @@ public class SimpleConn implements Conn {
     senderThread.start();
     senderMap.put(id, sender);
 
-    Message message = new Message(Message.MessageType.INIT, nodeId, null);
+    Message message = new Message(Message.Type.INIT, nodeId, null);
     this.send(id, message);
 
     new Thread(new Receiver(inputStream, messageQueue)).start();
@@ -117,23 +118,42 @@ public class SimpleConn implements Conn {
   }
 
   @Override
-  public void send(int id, Serializable message) {
+  public void send(int id, Serializable data) {
+    Message message = new Message(Message.Type.DATA, nodeId, nodeId, id, data);
+    send(id, message);
+  }
+
+  void send(int id, Message message) {
     senderMap.get(id).send(message);
   }
 
   @Override
-  public void broadcast(Serializable message) {
-    for (Sender sender : senderMap.values()) {
-      sender.send(message);
+  public void broadcast(Serializable data) {
+    Message message = new Message(Message.Type.BROADCAST, nodeId, nodeId, -1, data);
+    broadcast(message);
+  }
+
+  void broadcast(Message message) {
+    broadcast(message, -1);
+  }
+
+  void broadcast(Message message, int exclude) {
+    for (Map.Entry<Integer, Sender> sender : senderMap.entrySet()) {
+      if (exclude != sender.getKey())
+        sender.getValue().send(message);
     }
   }
 
+  @Override
   public Serializable getMessage() {
+    return nextMessage().getDataload();
+  }
+
+  Message nextMessage() {
     while (true) {
       if (messageQueue.isEmpty())
         continue;
       return messageQueue.poll();
     }
-
   }
 }

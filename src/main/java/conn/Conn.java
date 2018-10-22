@@ -9,9 +9,9 @@ import java.util.Map;
 public interface Conn {
   void connect(Map<Integer, Pair<String, Integer>> connectionList) throws IOException;
 
-  void send(int id, Serializable message);
+  void send(int id, Serializable data);
 
-  void broadcast(Serializable message);
+  void broadcast(Serializable data);
 
   Serializable getMessage();
 }

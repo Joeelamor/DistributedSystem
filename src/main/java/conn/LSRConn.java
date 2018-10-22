@@ -22,9 +22,9 @@ public class LSRConn extends SimpleConn {
 
   private class TCDataload implements Serializable {
     private HashSet<Integer> MPRSelectors;
-    private long MPRSelectorsSeq;
+    private Long MPRSelectorsSeq;
 
-    TCDataload(HashSet<Integer> MPRSelectors, long MPRSelectorsSeq) {
+    TCDataload(HashSet<Integer> MPRSelectors, Long MPRSelectorsSeq) {
       this.MPRSelectors = MPRSelectors;
       this.MPRSelectorsSeq = MPRSelectorsSeq;
     }
@@ -43,7 +43,7 @@ public class LSRConn extends SimpleConn {
 
     @Override
     public void run() {
-      sendHelloMessage();
+      sendHelloMsg();
     }
   }
 
@@ -61,11 +61,11 @@ public class LSRConn extends SimpleConn {
 
     @Override
     public void run() {
-      sendTopologyControlMessage();
+      sendTopologyControlMsg();
     }
   }
 
-  private HashSet<Integer> OneHopNeighbor;
+  private HashSet<Integer> OneHopNeighbors;
   private HashMap<Integer, HashSet<Integer>> PotentialTwoHopNeighbor;
 
   private HashSet<Integer> MultiPointRelays;
@@ -75,19 +75,29 @@ public class LSRConn extends SimpleConn {
   private long MPRSelectorsSeq;
 
   private HashMap<Integer, Pair<HashSet<Integer>, Long>> TopologyTable;
+  private HashMap<Integer, Pair<Integer, Integer>> RoutingTable;
 
   private ConcurrentLinkedQueue<Serializable> messageQueue;
 
   public LSRConn(int nodeId, int port) throws IOException {
-
     super(nodeId, port);
-
+    OneHopNeighbors = new HashSet<>();
+    PotentialTwoHopNeighbor = new HashMap<>();
+    MultiPointRelays = new HashSet<>();
+    MultiPointRelaysSeq = 0L;
+    MPRSelectors = new HashSet<>();
+    MPRSelectorsSeq = 0L;
+    TopologyTable = new HashMap<>();
+    RoutingTable = new HashMap<>();
+    messageQueue = new ConcurrentLinkedQueue<>();
   }
 
   @Override
   public void connect(Map<Integer, Pair<String, Integer>> connectionList) throws IOException {
 
     super.connect(connectionList);
+
+    OneHopNeighbors.addAll(connectionList.keySet());
 
     Timer HelloTimer = new Timer("Link Sensing Timer");
     HelloTimer.scheduleAtFixedRate(
@@ -107,16 +117,19 @@ public class LSRConn extends SimpleConn {
       @Override
       public void run() {
         while (true) {
-          Message message = (Message) LSRConn.super.getMessage();
+          Message message = LSRConn.super.nextMessage();
           switch (message.type) {
             case DATA:
-              LSRConn.this.messageQueue.offer(message.dataload);
+              LSRConn.this.processRcvdDataMsg(message);
               break;
             case HELLO:
-              LSRConn.this.receiveHelloMessage(message);
+              LSRConn.this.processRcvdHelloMsg(message);
               break;
             case TC:
-              LSRConn.this.receiveTopologyControlMessage(message);
+              LSRConn.this.processRcvdTopologyControlMsg(message);
+              break;
+            case BROADCAST:
+              LSRConn.this.processRcvdBroadcastMsg(message);
               break;
             default:
               break;
@@ -124,28 +137,49 @@ public class LSRConn extends SimpleConn {
         }
       }
     });
+
+    MessageProcessor.start();
   }
 
   @Override
-  public void send(int id, Serializable message) {
-    super.send(id, message);
+  public void send(int id, Serializable data) {
+    Message message = new Message(Message.Type.DATA, nodeId, nodeId, id, data);
+    send(getNextHop(message.getReceiverId()), message);
   }
 
   @Override
-  public void broadcast(Serializable message) {
-    super.broadcast(message);
+  public void broadcast(Serializable data) {
+    Message message = new Message(Message.Type.BROADCAST, nodeId, nodeId, -1, data);
+    broadcast(message);
   }
 
   @Override
   public Serializable getMessage() {
-    return super.getMessage();
+    while (true) {
+      if (messageQueue.isEmpty())
+        continue;
+      return messageQueue.poll();
+    }
   }
 
-  private HashSet<Integer> selectMPR(HashMap<Integer, HashSet<Integer>> neighbors, HashSet<Integer> twohops) {
+  private void forward(Message message) {
+    message.setSenderId(nodeId);
+    send(getNextHop(message.getReceiverId()), message);
+  }
+
+  private void forwardBroadcast(Message message) {
+    if (this.MPRSelectors.contains(message.getSenderId())) {
+      int oldSenderID = message.getSenderId();
+      message.setSenderId(this.nodeId);
+      broadcast(message, oldSenderID);
+    }
+  }
+
+  private void selectMPR(HashMap<Integer, HashSet<Integer>> neighbors, HashSet<Integer> twohops) {
     HashSet<Integer> MPR = new HashSet<>();
     while (!twohops.isEmpty()) {
       Integer maxID = -1;
-      Integer maxIntersectionSize = 0;
+      int maxIntersectionSize = 0;
       for (HashMap.Entry<Integer, HashSet<Integer>> neighbor : neighbors.entrySet()) {
         if (MPR.contains(neighbor.getKey()))
           continue;
@@ -157,44 +191,71 @@ public class LSRConn extends SimpleConn {
         }
       }
       MPR.add(maxID);
-      twohops.retainAll(neighbors.get(maxID));
+      twohops.removeAll(neighbors.get(maxID));
     }
-    return MPR;
+    this.MultiPointRelays = MPR;
   }
 
   /**
    * send hello
    */
-  private void sendHelloMessage() {
-
+  private void sendHelloMsg() {
     HashSet<Integer> TwoHopNeighbors = new HashSet<>();
     for (HashSet<Integer> potential : this.PotentialTwoHopNeighbor.values()) {
       for (Integer id : potential) {
-        if (id == this.nodeId || this.OneHopNeighbor.contains(id))
+        if (id == this.nodeId || this.OneHopNeighbors.contains(id))
           continue;
         TwoHopNeighbors.add(id);
       }
     }
 
-    this.MultiPointRelays = selectMPR(this.PotentialTwoHopNeighbor, TwoHopNeighbors);
+    selectMPR(this.PotentialTwoHopNeighbor, TwoHopNeighbors);
 
     HelloDataload dataload = new HelloDataload(
-      this.OneHopNeighbor,
+      this.OneHopNeighbors,
       this.MultiPointRelays
     );
     Message hello = new Message(
-      Message.MessageType.HELLO,
+      Message.Type.HELLO,
       this.nodeId,
+      this.nodeId,
+      -1,
       dataload
     );
     super.broadcast(hello);
   }
 
   /**
+   * send TC
+   */
+  private void sendTopologyControlMsg() {
+    TCDataload dataload = new TCDataload(
+      this.MPRSelectors,
+      this.MPRSelectorsSeq
+    );
+    Message tc = new Message(Message.Type.TC, this.nodeId, this.nodeId, -1, dataload);
+    super.broadcast(tc);
+  }
+
+  private void processRcvdDataMsg(Message data) {
+    if (nodeId == data.getReceiverId())
+      messageQueue.offer(data.dataload);
+    else
+      forward(data);
+  }
+
+  private void processRcvdBroadcastMsg(Message broadcastMessage) {
+    this.messageQueue.offer(broadcastMessage.dataload);
+    System.out.println("Received broadcast message: " + broadcastMessage);
+    forwardBroadcast(broadcastMessage);
+    send(broadcastMessage.getOriginatorId(), "receive from node " + nodeId);
+  }
+
+  /**
    * receive hello
    */
-  private void receiveHelloMessage(Message hello) {
-    HelloDataload dataload = (HelloDataload) hello.dataload;
+  private void processRcvdHelloMsg(Message hello) {
+    HelloDataload dataload = (HelloDataload) hello.getDataload();
 
     this.PotentialTwoHopNeighbor.put(hello.getSenderId(), dataload.OneHopNeighbor);
 
@@ -212,28 +273,54 @@ public class LSRConn extends SimpleConn {
   }
 
   /**
-   * send TC
-   */
-  private void sendTopologyControlMessage() {
-    TCDataload dataload = new TCDataload(
-      this.MPRSelectors,
-      this.MPRSelectorsSeq
-    );
-    Message hello = new Message(Message.MessageType.TC, this.nodeId, dataload);
-    super.broadcast(hello);
-  }
-
-  /**
    * receive TC
    */
-  private void receiveTopologyControlMessage(Message tc) {
+  private void processRcvdTopologyControlMsg(Message tc) {
     TCDataload dataload = (TCDataload) tc.dataload;
-    Long currentSeq = this.TopologyTable.getOrDefault(tc.getSenderId(), new ImmutablePair<>(null, 0L)).getRight();
-    if (currentSeq > dataload.MPRSelectorsSeq)
+    Long currentSeq = 0L;
+    if (TopologyTable.containsKey(tc.getOriginatorId()))
+      currentSeq = TopologyTable.get(tc.getOriginatorId()).getRight();
+
+    if (currentSeq >= dataload.MPRSelectorsSeq)
       return;
     this.TopologyTable.put(tc.getSenderId(), new ImmutablePair<>(dataload.MPRSelectors, dataload.MPRSelectorsSeq));
-    if (this.MPRSelectors.contains(tc.getSenderId())) {
-      super.broadcast(tc);
+    forwardBroadcast(tc);
+    calcRoutingTable();
+  }
+
+  private void calcRoutingTable() {
+    HashMap<Integer, Pair<HashSet<Integer>, Long>> TopoSnapshot = new HashMap<>(this.TopologyTable);
+    HashMap<Integer, Pair<Integer, Integer>> RoutingTable = new HashMap<>();
+    HashMap<Integer, Pair<Integer, Integer>> NHopNeighbors = new HashMap<>();
+    HashMap<Integer, Pair<Integer, Integer>> NplusOneHopNeighbors;
+    for (Integer OneHopNeighbor : OneHopNeighbors)
+      NHopNeighbors.put(OneHopNeighbor, new ImmutablePair<>(OneHopNeighbor, 1));
+    while (!NHopNeighbors.isEmpty()) {
+      RoutingTable.putAll(NHopNeighbors);
+      NplusOneHopNeighbors = new HashMap<>();
+      for (HashMap.Entry<Integer, Pair<Integer, Integer>> NHopNeighbor : NHopNeighbors.entrySet()) {
+        Integer NHopID = NHopNeighbor.getKey();
+        if (!this.TopologyTable.containsKey(NHopID))
+          continue;
+        Pair<Integer, Integer> NHopNextHop = NHopNeighbor.getValue();
+        for (Integer NplusOneHopNeighbor : TopoSnapshot.get(NHopID).getLeft()) {
+          if (RoutingTable.containsKey(NplusOneHopNeighbor))
+            continue;
+          NplusOneHopNeighbors.put(
+            NplusOneHopNeighbor,
+            new ImmutablePair<>(
+              NHopNextHop.getLeft(),
+              NHopNextHop.getRight() + 1
+            )
+          );
+        }
+      }
+      NHopNeighbors = NplusOneHopNeighbors;
     }
+    this.RoutingTable = RoutingTable;
+  }
+
+  private int getNextHop(int target) {
+    return this.RoutingTable.get(target).getLeft();
   }
 }

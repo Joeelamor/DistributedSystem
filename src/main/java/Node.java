@@ -32,21 +32,7 @@ public class Node {
   }
 
   public void start() {
-
-    long startTime = new Date().getTime();
-    long curTime = 0;
-    long timeout = totalNumber * 10 * 1000;
-    while (curTime - startTime < timeout) {
-      Serializable message = conn.getMessage();
-      curTime = new Date().getTime();
-    }
-    TreeMap<Integer, List<Integer>> output = new TreeMap<>();
-
-    System.out.println("Node " + nodeId + "'s khop: " +
-      output.entrySet()
-        .stream()
-        .map(entry -> entry.getKey() + ":" + entry.getValue())
-        .collect(Collectors.joining(", \n\t", "{\n\t", "\n}")));
+    // TODO: capable of many things.
   }
 
   @Override
