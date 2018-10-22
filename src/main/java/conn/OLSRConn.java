@@ -8,7 +8,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class LSRConn extends SimpleConn {
+public class OLSRConn extends SimpleConn {
 
   private class HelloDataload implements Serializable {
     private HashSet<Integer> OneHopNeighbor;
@@ -79,7 +79,7 @@ public class LSRConn extends SimpleConn {
 
   private ConcurrentLinkedQueue<Serializable> messageQueue;
 
-  public LSRConn(int nodeId, int port) throws IOException {
+  public OLSRConn(int nodeId, int port) throws IOException {
     super(nodeId, port);
     OneHopNeighbors = new HashSet<>();
     PotentialTwoHopNeighbor = new HashMap<>();
@@ -117,19 +117,19 @@ public class LSRConn extends SimpleConn {
       @Override
       public void run() {
         while (true) {
-          Message message = LSRConn.super.nextMessage();
+          Message message = OLSRConn.super.nextMessage();
           switch (message.type) {
             case DATA:
-              LSRConn.this.processRcvdDataMsg(message);
+              OLSRConn.this.processRcvdDataMsg(message);
               break;
             case HELLO:
-              LSRConn.this.processRcvdHelloMsg(message);
+              OLSRConn.this.processRcvdHelloMsg(message);
               break;
             case TC:
-              LSRConn.this.processRcvdTopologyControlMsg(message);
+              OLSRConn.this.processRcvdTopologyControlMsg(message);
               break;
             case BROADCAST:
-              LSRConn.this.processRcvdBroadcastMsg(message);
+              OLSRConn.this.processRcvdBroadcastMsg(message);
               break;
             default:
               break;

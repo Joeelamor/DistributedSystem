@@ -1,16 +1,13 @@
 import conn.Conn;
-import conn.SimpleConn;
-import conn.LSRConn;
+import conn.OLSRConn;
 import org.apache.commons.lang3.tuple.Pair;
 import parser.Parser;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.Serializable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Node {
   private Map<Integer, Pair<String, Integer>> connectionList;
@@ -27,7 +24,7 @@ public class Node {
   }
 
   public void init() throws IOException {
-    this.conn = new LSRConn(this.nodeId, this.port);
+    this.conn = new OLSRConn(this.nodeId, this.port);
     this.conn.connect(this.connectionList);
   }
 
