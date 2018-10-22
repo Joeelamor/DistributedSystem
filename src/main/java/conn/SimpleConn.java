@@ -16,8 +16,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class SimpleConn implements Conn {
   ConcurrentHashMap<Integer, Sender> senderMap;
-  private ConcurrentLinkedQueue<Message> messageQueue;
   int nodeId;
+  private ConcurrentLinkedQueue<Message> messageQueue;
 
   public SimpleConn(int nodeId, int port) throws IOException {
     ServerSocket listener = new ServerSocket(port);
@@ -27,40 +27,6 @@ public class SimpleConn implements Conn {
     this.messageQueue = new ConcurrentLinkedQueue<>();
 
     new Thread(new Listener(listener)).start();
-  }
-
-  private class Listener implements Runnable {
-    private ServerSocket serverSocket;
-
-    private Listener(ServerSocket serverSocket) {
-      this.serverSocket = serverSocket;
-    }
-
-    @Override
-    public void run() {
-      try {
-        while (true) {
-          Socket socket = serverSocket.accept();
-          ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-          ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-          Message message = (Message) inputStream.readObject();
-
-          Sender sender = new Sender(outputStream);
-          Thread senderThread = new Thread(sender);
-          senderThread.start();
-          senderMap.put(message.getSenderId(), sender);
-
-          System.out.println(message);
-          new Thread(new Receiver(inputStream, messageQueue)).start();
-        }
-      } catch (IOException e) {
-        e.printStackTrace();
-        System.err.println("Unable to start server logic");
-      } catch (ClassNotFoundException e) {
-        e.printStackTrace();
-        System.err.println("Class of a serialized object cannot be found");
-      }
-    }
   }
 
   @Override
@@ -154,6 +120,40 @@ public class SimpleConn implements Conn {
       if (messageQueue.isEmpty())
         continue;
       return messageQueue.poll();
+    }
+  }
+
+  private class Listener implements Runnable {
+    private ServerSocket serverSocket;
+
+    private Listener(ServerSocket serverSocket) {
+      this.serverSocket = serverSocket;
+    }
+
+    @Override
+    public void run() {
+      try {
+        while (true) {
+          Socket socket = serverSocket.accept();
+          ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
+          ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+          Message message = (Message) inputStream.readObject();
+
+          Sender sender = new Sender(outputStream);
+          Thread senderThread = new Thread(sender);
+          senderThread.start();
+          senderMap.put(message.getSenderId(), sender);
+
+          System.out.println(message);
+          new Thread(new Receiver(inputStream, messageQueue)).start();
+        }
+      } catch (IOException e) {
+        e.printStackTrace();
+        System.err.println("Unable to start server logic");
+      } catch (ClassNotFoundException e) {
+        e.printStackTrace();
+        System.err.println("Class of a serialized object cannot be found");
+      }
     }
   }
 }

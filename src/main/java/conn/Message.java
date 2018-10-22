@@ -4,17 +4,12 @@ import java.io.Serializable;
 
 class Message implements Serializable {
 
-  public enum Type {
-    INIT, HELLO, TC, DATA, BROADCAST
-  }
-
   Type type;
+  Serializable dataload;
   private int seq;
   private int senderId;
   private int originatorId;
   private int receiverId;
-  Serializable dataload;
-
   public Message(Type type, int senderId, Serializable dataload) {
     this.type = type;
     this.senderId = senderId;
@@ -41,8 +36,16 @@ class Message implements Serializable {
     return senderId;
   }
 
+  public void setSenderId(int senderId) {
+    this.senderId = senderId;
+  }
+
   public int getReceiverId() {
     return receiverId;
+  }
+
+  public void setReceiverId(int receiverId) {
+    this.receiverId = receiverId;
   }
 
   public int getOriginatorId() {
@@ -53,19 +56,15 @@ class Message implements Serializable {
     this.originatorId = originatorId;
   }
 
-  public void setReceiverId(int receiverId) {
-    this.receiverId = receiverId;
-  }
-
-  public void setSenderId(int senderId) {
-    this.senderId = senderId;
-  }
-
   public Serializable getDataload() {
     return dataload;
   }
 
   public void setDataload(Serializable dataload) {
     this.dataload = dataload;
+  }
+
+  public enum Type {
+    INIT, HELLO, TC, DATA, BROADCAST
   }
 }

@@ -10,75 +10,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class OLSRConn extends SimpleConn {
 
-  private class HelloDataload implements Serializable {
-    private HashSet<Integer> OneHopNeighbor;
-    private HashSet<Integer> MultiPointRelays;
-
-    HelloDataload(HashSet<Integer> oneHopNeighbor, HashSet<Integer> multiPointRelays) {
-      OneHopNeighbor = oneHopNeighbor;
-      MultiPointRelays = multiPointRelays;
-    }
-  }
-
-  private class TCDataload implements Serializable {
-    private HashSet<Integer> MPRSelectors;
-    private Long MPRSelectorsSeq;
-
-    TCDataload(HashSet<Integer> MPRSelectors, Long MPRSelectorsSeq) {
-      this.MPRSelectors = MPRSelectors;
-      this.MPRSelectorsSeq = MPRSelectorsSeq;
-    }
-  }
-
-  /**
-   * Each node should periodically floods {@code HELLO} message for link
-   * sensing. The node’s MPR set is included in the {@code HELLO} message.
-   * <p>
-   * The {@code HelloTask} periodically send out {@code HELLO} messages.
-   */
-  private class HelloTask extends TimerTask {
-
-    final static long delay = 1000L;
-    final static long period = 1000L;
-
-    @Override
-    public void run() {
-      sendHelloMsg();
-    }
-  }
-
-  /**
-   * Nodes with a non-empty {@code MS} periodically flood their {@code MS}
-   * via a {@code TC} message.
-   * <p>
-   * The {@code TopologyControlTask} periodically send out {@code TC} messages
-   * if update needed.
-   */
-  private class TopologyControlTask extends TimerTask {
-
-    final static long delay = 1000L;
-    final static long period = 1000L;
-
-    @Override
-    public void run() {
-      sendTopologyControlMsg();
-    }
-  }
-
   private HashSet<Integer> OneHopNeighbors;
   private HashMap<Integer, HashSet<Integer>> PotentialTwoHopNeighbor;
-
   private HashSet<Integer> MultiPointRelays;
   private long MultiPointRelaysSeq;
-
   private HashSet<Integer> MPRSelectors;
   private long MPRSelectorsSeq;
-
   private HashMap<Integer, Pair<HashSet<Integer>, Long>> TopologyTable;
   private HashMap<Integer, Pair<Integer, Integer>> RoutingTable;
-
   private ConcurrentLinkedQueue<Serializable> messageQueue;
-
   public OLSRConn(int nodeId, int port) throws IOException {
     super(nodeId, port);
     OneHopNeighbors = new HashSet<>();
@@ -322,5 +262,60 @@ public class OLSRConn extends SimpleConn {
 
   private int getNextHop(int target) {
     return this.RoutingTable.get(target).getLeft();
+  }
+
+  private class HelloDataload implements Serializable {
+    private HashSet<Integer> OneHopNeighbor;
+    private HashSet<Integer> MultiPointRelays;
+
+    HelloDataload(HashSet<Integer> oneHopNeighbor, HashSet<Integer> multiPointRelays) {
+      OneHopNeighbor = oneHopNeighbor;
+      MultiPointRelays = multiPointRelays;
+    }
+  }
+
+  private class TCDataload implements Serializable {
+    private HashSet<Integer> MPRSelectors;
+    private Long MPRSelectorsSeq;
+
+    TCDataload(HashSet<Integer> MPRSelectors, Long MPRSelectorsSeq) {
+      this.MPRSelectors = MPRSelectors;
+      this.MPRSelectorsSeq = MPRSelectorsSeq;
+    }
+  }
+
+  /**
+   * Each node should periodically floods {@code HELLO} message for link
+   * sensing. The node’s MPR set is included in the {@code HELLO} message.
+   * <p>
+   * The {@code HelloTask} periodically send out {@code HELLO} messages.
+   */
+  private class HelloTask extends TimerTask {
+
+    final static long delay = 1000L;
+    final static long period = 1000L;
+
+    @Override
+    public void run() {
+      sendHelloMsg();
+    }
+  }
+
+  /**
+   * Nodes with a non-empty {@code MS} periodically flood their {@code MS}
+   * via a {@code TC} message.
+   * <p>
+   * The {@code TopologyControlTask} periodically send out {@code TC} messages
+   * if update needed.
+   */
+  private class TopologyControlTask extends TimerTask {
+
+    final static long delay = 1000L;
+    final static long period = 1000L;
+
+    @Override
+    public void run() {
+      sendTopologyControlMsg();
+    }
   }
 }
