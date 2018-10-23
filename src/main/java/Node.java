@@ -33,6 +33,7 @@ public class Node {
       Thread.sleep(5000L);
     }
 
+    Thread.sleep(5000L);
     System.out.println();
     System.out.println("============= network has converged =============");
     System.out.println("set tree neighbors: " + conn.getTreeNeighbor());

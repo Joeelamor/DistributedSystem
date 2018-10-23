@@ -3,6 +3,11 @@ package conn;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Message defines the communication protocol between the Conn interface. It
+ * carries a Serializable dataload field that can be used to transfer any
+ * serializable object.
+ */
 class Message implements Serializable {
 
   private static AtomicLong SequenceCounter = new AtomicLong();

@@ -148,7 +148,7 @@ public class OLSRConn extends SimpleConn {
    *
    * @param connectionList List of directly connected hosts.
    * @throws IOException If one of the directly connected neighbor's
-   *                     connection failed, throw the execption.
+   *                     connection failed, throw the exception.
    */
   @Override
   public void connect(Map<Integer, Pair<String, Integer>> connectionList) throws IOException {
@@ -212,9 +212,9 @@ public class OLSRConn extends SimpleConn {
         long oldMPRSeq = MultiPointRelaysSeq;
         Thread.sleep(CONVERGENCE_CHECK_INTERVAL);
         if (oldMPRSeq == MultiPointRelaysSeq) {
-          converge = true;
           HelloTimer.cancel();
           TopologyControlTimer.cancel();
+          converge = true;
           break;
         }
       } catch (InterruptedException e) {
