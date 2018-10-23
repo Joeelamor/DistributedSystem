@@ -22,8 +22,10 @@ public class Receiver implements Runnable {
         queue.offer(message);
       }
     } catch (IOException e) {
+      e.printStackTrace();
       System.err.println("input stream closed by other end.");
     } catch (ClassNotFoundException e) {
+      e.printStackTrace();
       System.err.println("input object class not found.");
     }
   }

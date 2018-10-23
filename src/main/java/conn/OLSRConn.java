@@ -7,8 +7,13 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
 
 public class OLSRConn extends SimpleConn {
+
+  private final static long CONVERGENCE_CHECK_INTERVAL = 5000L;
+
+  private int totalNodeNumber;
 
   private HashSet<Integer> OneHopNeighbors;
   private HashMap<Integer, HashSet<Integer>> PotentialTwoHopNeighbor;
@@ -16,20 +21,49 @@ public class OLSRConn extends SimpleConn {
   private long MultiPointRelaysSeq;
   private HashSet<Integer> MPRSelectors;
   private long MPRSelectorsSeq;
+  private volatile boolean MPRSelectorSent;
   private HashMap<Integer, Pair<HashSet<Integer>, Long>> TopologyTable;
   private HashMap<Integer, Pair<Integer, Integer>> RoutingTable;
+  private HashMap<Integer, Long> LastMsgSeq;
   private ConcurrentLinkedQueue<Serializable> messageQueue;
-  public OLSRConn(int nodeId, int port) throws IOException {
+  private volatile boolean converge;
+
+  private final Semaphore pendingBroadcastACK = new Semaphore(0);
+
+  @Override
+  public String toString() {
+    return "OLSRConn{" +
+      "OneHopNeighbors=" + OneHopNeighbors +
+      ", \nPotentialTwoHopNeighbor=" + PotentialTwoHopNeighbor +
+      ", \nMultiPointRelays=" + MultiPointRelays +
+      ", \nMultiPointRelaysSeq=" + MultiPointRelaysSeq +
+      ", \nMPRSelectors=" + MPRSelectors +
+      ", \nMPRSelectorsSeq=" + MPRSelectorsSeq +
+      ", \nTopologyTable=" + TopologyTable +
+      ", \nRoutingTable=" + RoutingTable +
+      ", \nmessageQueue=" + messageQueue +
+      '}';
+  }
+
+  public OLSRConn(int nodeId, int port, int totalNodeNumber) throws IOException {
     super(nodeId, port);
+    this.totalNodeNumber = totalNodeNumber;
     OneHopNeighbors = new HashSet<>();
     PotentialTwoHopNeighbor = new HashMap<>();
     MultiPointRelays = new HashSet<>();
     MultiPointRelaysSeq = 0L;
     MPRSelectors = new HashSet<>();
     MPRSelectorsSeq = 0L;
+    MPRSelectorSent = true;
     TopologyTable = new HashMap<>();
     RoutingTable = new HashMap<>();
+    LastMsgSeq = new HashMap<>();
     messageQueue = new ConcurrentLinkedQueue<>();
+    converge = false;
+  }
+
+  public HashSet<Integer> getTreeNeighbor() {
+    return new HashSet<>(MultiPointRelays);
   }
 
   @Override
@@ -59,16 +93,18 @@ public class OLSRConn extends SimpleConn {
         while (true) {
           Message message = OLSRConn.super.nextMessage();
           switch (message.type) {
-            case DATA:
-              OLSRConn.this.processRcvdDataMsg(message);
+            case ACK:
+              OLSRConn.this.processRcvdACKMsg(message);
               break;
             case HELLO:
+              System.out.println("Received\t" + message);
               OLSRConn.this.processRcvdHelloMsg(message);
               break;
             case TC:
+              System.out.println("Received\t" + message);
               OLSRConn.this.processRcvdTopologyControlMsg(message);
               break;
-            case BROADCAST:
+            case BCAST:
               OLSRConn.this.processRcvdBroadcastMsg(message);
               break;
             default:
@@ -79,18 +115,37 @@ public class OLSRConn extends SimpleConn {
     });
 
     MessageProcessor.start();
+
+    while (true) {
+      try {
+        long oldMPRSeq = MultiPointRelaysSeq;
+        Thread.sleep(CONVERGENCE_CHECK_INTERVAL);
+        if (oldMPRSeq == MultiPointRelaysSeq) {
+          converge = true;
+          HelloTimer.cancel();
+          TopologyControlTimer.cancel();
+          break;
+        }
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+
+    }
   }
 
   @Override
   public void send(int id, Serializable data) {
-    Message message = new Message(Message.Type.DATA, nodeId, nodeId, id, data);
+    Message message = new Message(Message.Type.ACK, nodeId, nodeId, id, data);
     send(getNextHop(message.getReceiverId()), message);
   }
 
   @Override
-  public void broadcast(Serializable data) {
-    Message message = new Message(Message.Type.BROADCAST, nodeId, nodeId, -1, data);
+  public synchronized void broadcast(Serializable data) {
+    Message message = new Message(Message.Type.BCAST, nodeId, data);
     broadcast(message);
+
+    //down()
+    pendingBroadcastACK.acquireUninterruptibly(totalNodeNumber - 1);
   }
 
   @Override
@@ -102,6 +157,11 @@ public class OLSRConn extends SimpleConn {
     }
   }
 
+  @Override
+  public boolean hasConverged() {
+    return converge;
+  }
+
   private void forward(Message message) {
     message.setSenderId(nodeId);
     send(getNextHop(message.getReceiverId()), message);
@@ -110,7 +170,8 @@ public class OLSRConn extends SimpleConn {
   private void forwardBroadcast(Message message) {
     if (this.MPRSelectors.contains(message.getSenderId())) {
       int oldSenderID = message.getSenderId();
-      message.setSenderId(this.nodeId);
+      message.setSenderId(nodeId);
+      System.out.println("Forward \t" + message);
       broadcast(message, oldSenderID);
     }
   }
@@ -133,7 +194,10 @@ public class OLSRConn extends SimpleConn {
       MPR.add(maxID);
       twohops.removeAll(neighbors.get(maxID));
     }
-    this.MultiPointRelays = MPR;
+    if (!MultiPointRelays.equals(MPR)) {
+      MultiPointRelays = MPR;
+      MultiPointRelaysSeq++;
+    }
   }
 
   /**
@@ -158,8 +222,6 @@ public class OLSRConn extends SimpleConn {
     Message hello = new Message(
       Message.Type.HELLO,
       this.nodeId,
-      this.nodeId,
-      -1,
       dataload
     );
     super.broadcast(hello);
@@ -169,45 +231,60 @@ public class OLSRConn extends SimpleConn {
    * send TC
    */
   private void sendTopologyControlMsg() {
+    if (MPRSelectorSent)
+      return;
     TCDataload dataload = new TCDataload(
       this.MPRSelectors,
       this.MPRSelectorsSeq
     );
-    Message tc = new Message(Message.Type.TC, this.nodeId, this.nodeId, -1, dataload);
+    Message tc = new Message(Message.Type.TC, nodeId, dataload);
     super.broadcast(tc);
+    MPRSelectorSent = false;
   }
 
-  private void processRcvdDataMsg(Message data) {
-    if (nodeId == data.getReceiverId())
-      messageQueue.offer(data.dataload);
-    else
-      forward(data);
+  private void processRcvdACKMsg(Message message) {
+    if (nodeId == message.getReceiverId()) {
+      System.out.println("Received\t" + message);
+      // up(pendingACK)
+      pendingBroadcastACK.release(1);
+      messageQueue.offer(message.dataload);
+    } else {
+      System.out.println("Forward \t" + message);
+      forward(message);
+    }
   }
 
-  private void processRcvdBroadcastMsg(Message broadcastMessage) {
-    this.messageQueue.offer(broadcastMessage.dataload);
-    System.out.println("Received broadcast message: " + broadcastMessage);
-    forwardBroadcast(broadcastMessage);
-    send(broadcastMessage.getOriginatorId(), "receive from node " + nodeId);
+  private void processRcvdBroadcastMsg(Message message) {
+    int origin = message.getOriginatorId();
+    if (LastMsgSeq.getOrDefault(origin, 0L) >= message.getSeq())
+      return;
+    LastMsgSeq.put(origin, message.getSeq());
+    System.out.println("Received\t" + message);
+    this.messageQueue.offer(message.dataload);
+    forwardBroadcast(message);
+    System.out.println("Reply to " + message.getOriginatorId());
+    send(message.getOriginatorId(), "receive from node " + nodeId);
   }
 
   /**
    * receive hello
    */
-  private void processRcvdHelloMsg(Message hello) {
-    HelloDataload dataload = (HelloDataload) hello.getDataload();
+  private void processRcvdHelloMsg(Message message) {
+    HelloDataload dataload = (HelloDataload) message.getDataload();
 
-    this.PotentialTwoHopNeighbor.put(hello.getSenderId(), dataload.OneHopNeighbor);
+    PotentialTwoHopNeighbor.put(message.getSenderId(), dataload.OneHopNeighbor);
 
-    if (dataload.MultiPointRelays.contains(this.nodeId)) {
-      if (!this.MPRSelectors.contains(hello.getSenderId())) {
-        this.MPRSelectors.add(hello.getSenderId());
-        this.MPRSelectorsSeq++;
+    if (dataload.MultiPointRelays.contains(nodeId)) {
+      if (!MPRSelectors.contains(message.getSenderId())) {
+        MPRSelectors.add(message.getSenderId());
+        MPRSelectorsSeq++;
+        MPRSelectorSent = false;
       }
     } else {
-      if (this.MPRSelectors.contains(hello.getSenderId())) {
-        this.MPRSelectors.remove(hello.getSenderId());
-        this.MPRSelectorsSeq++;
+      if (MPRSelectors.contains(message.getSenderId())) {
+        MPRSelectors.remove(message.getSenderId());
+        MPRSelectorsSeq++;
+        MPRSelectorSent = false;
       }
     }
   }
@@ -215,41 +292,49 @@ public class OLSRConn extends SimpleConn {
   /**
    * receive TC
    */
-  private void processRcvdTopologyControlMsg(Message tc) {
-    TCDataload dataload = (TCDataload) tc.dataload;
+  private void processRcvdTopologyControlMsg(Message message) {
+    TCDataload dataload = (TCDataload) message.dataload;
     Long currentSeq = 0L;
-    if (TopologyTable.containsKey(tc.getOriginatorId()))
-      currentSeq = TopologyTable.get(tc.getOriginatorId()).getRight();
+    if (TopologyTable.containsKey(message.getOriginatorId()))
+      currentSeq = TopologyTable.get(message.getOriginatorId()).getRight();
 
     if (currentSeq >= dataload.MPRSelectorsSeq)
       return;
-    this.TopologyTable.put(tc.getSenderId(), new ImmutablePair<>(dataload.MPRSelectors, dataload.MPRSelectorsSeq));
-    forwardBroadcast(tc);
+    TopologyTable.put(message.getOriginatorId(), new ImmutablePair<>(dataload.MPRSelectors, dataload.MPRSelectorsSeq));
+    forwardBroadcast(message);
     calcRoutingTable();
   }
 
+  private HashMap<Integer, HashSet<Integer>> getTopologyTableSnapshot() {
+    HashMap<Integer, HashSet<Integer>> topology = new HashMap<>();
+    topology.put(nodeId, OneHopNeighbors);
+    for (Map.Entry<Integer, Pair<HashSet<Integer>, Long>> topoEntry : TopologyTable.entrySet()) {
+      topology.put(topoEntry.getKey(), topoEntry.getValue().getLeft());
+    }
+    return topology;
+  }
+
   private void calcRoutingTable() {
-    HashMap<Integer, Pair<HashSet<Integer>, Long>> TopoSnapshot = new HashMap<>(this.TopologyTable);
+    HashMap<Integer, HashSet<Integer>> TopoSnapshot = getTopologyTableSnapshot();
     HashMap<Integer, Pair<Integer, Integer>> RoutingTable = new HashMap<>();
     HashMap<Integer, Pair<Integer, Integer>> NHopNeighbors = new HashMap<>();
     HashMap<Integer, Pair<Integer, Integer>> NplusOneHopNeighbors;
-    for (Integer OneHopNeighbor : OneHopNeighbors)
-      NHopNeighbors.put(OneHopNeighbor, new ImmutablePair<>(OneHopNeighbor, 1));
+    NHopNeighbors.put(nodeId, new ImmutablePair<>(nodeId, 0));
     while (!NHopNeighbors.isEmpty()) {
       RoutingTable.putAll(NHopNeighbors);
       NplusOneHopNeighbors = new HashMap<>();
       for (HashMap.Entry<Integer, Pair<Integer, Integer>> NHopNeighbor : NHopNeighbors.entrySet()) {
         Integer NHopID = NHopNeighbor.getKey();
-        if (!this.TopologyTable.containsKey(NHopID))
+        if (!TopoSnapshot.containsKey(NHopID))
           continue;
         Pair<Integer, Integer> NHopNextHop = NHopNeighbor.getValue();
-        for (Integer NplusOneHopNeighbor : TopoSnapshot.get(NHopID).getLeft()) {
+        for (Integer NplusOneHopNeighbor : TopoSnapshot.get(NHopID)) {
           if (RoutingTable.containsKey(NplusOneHopNeighbor))
             continue;
           NplusOneHopNeighbors.put(
             NplusOneHopNeighbor,
             new ImmutablePair<>(
-              NHopNextHop.getLeft(),
+              NHopNextHop.getLeft() == nodeId ? NplusOneHopNeighbor : NHopNextHop.getLeft(),
               NHopNextHop.getRight() + 1
             )
           );
@@ -264,7 +349,7 @@ public class OLSRConn extends SimpleConn {
     return this.RoutingTable.get(target).getLeft();
   }
 
-  private class HelloDataload implements Serializable {
+  static class HelloDataload implements Serializable {
     private HashSet<Integer> OneHopNeighbor;
     private HashSet<Integer> MultiPointRelays;
 
@@ -272,15 +357,31 @@ public class OLSRConn extends SimpleConn {
       OneHopNeighbor = oneHopNeighbor;
       MultiPointRelays = multiPointRelays;
     }
+
+    @Override
+    public String toString() {
+      return "HelloDataload[" +
+        "OneHopNeighbor=" + OneHopNeighbor +
+        ", MultiPointRelays=" + MultiPointRelays +
+        ']';
+    }
   }
 
-  private class TCDataload implements Serializable {
+  static class TCDataload implements Serializable {
     private HashSet<Integer> MPRSelectors;
     private Long MPRSelectorsSeq;
 
     TCDataload(HashSet<Integer> MPRSelectors, Long MPRSelectorsSeq) {
       this.MPRSelectors = MPRSelectors;
       this.MPRSelectorsSeq = MPRSelectorsSeq;
+    }
+
+    @Override
+    public String toString() {
+      return "TCDataload[" +
+        "MPRSelectors=" + MPRSelectors +
+        ", MPRSelectorsSeq=" + MPRSelectorsSeq +
+        ']';
     }
   }
 
@@ -293,7 +394,7 @@ public class OLSRConn extends SimpleConn {
   private class HelloTask extends TimerTask {
 
     final static long delay = 1000L;
-    final static long period = 1000L;
+    final static long period = 100L;
 
     @Override
     public void run() {
@@ -311,7 +412,7 @@ public class OLSRConn extends SimpleConn {
   private class TopologyControlTask extends TimerTask {
 
     final static long delay = 1000L;
-    final static long period = 1000L;
+    final static long period = 200L;
 
     @Override
     public void run() {

@@ -14,7 +14,7 @@ public class Node {
   private int nodeId;
   private int port;
   private int totalNumber;
-  private Conn conn;
+  private OLSRConn conn;
 
   public Node(Map<Integer, Pair<String, Integer>> connectionList, int nodeId, int port, int totalNumber) {
     this.connectionList = connectionList;
@@ -24,12 +24,26 @@ public class Node {
   }
 
   public void init() throws IOException {
-    this.conn = new OLSRConn(this.nodeId, this.port);
+    this.conn = new OLSRConn(this.nodeId, this.port, totalNumber);
     this.conn.connect(this.connectionList);
   }
 
-  public void start() {
-    // TODO: capable of many things.
+  public void start() throws InterruptedException {
+    while (!conn.hasConverged()) {
+      Thread.sleep(5000L);
+    }
+
+    System.out.println();
+    System.out.println("============= network has converged =============");
+    System.out.println("set tree neighbors: " + conn.getTreeNeighbor());
+    System.out.println("=================================================");
+    System.out.println();
+
+    while (true) {
+      Thread.sleep(5000L);
+      conn.broadcast("Node " + nodeId + " send a broadcast msg");
+      Thread.sleep(5000L);
+    }
   }
 
   @Override
@@ -37,15 +51,9 @@ public class Node {
     return "Node[" + nodeId + ":" + port + ']';
   }
 
-  public static void main(String[] args) throws FileNotFoundException {
+  public static void main(String[] args) throws FileNotFoundException, InterruptedException, UnknownHostException {
     Parser parser = new Parser();
-    String hostName = "";
-    try {
-      hostName = InetAddress.getLocalHost().getHostName();
-      System.out.println(hostName);
-    } catch (UnknownHostException e) {
-      e.printStackTrace();
-    }
+    String hostName = InetAddress.getLocalHost().getHostName();
     parser.parseFile(args[0], hostName);
     int totalNumber = parser.getTotalNumber();
     List<Parser.HostInfo> hostInfos = parser.getHostInfos();
@@ -57,6 +65,7 @@ public class Node {
           hostInfo.host.getRight(),
           totalNumber
         );
+        System.out.printf("Start Node %d.\n", node.nodeId);
         node.init();
         node.start();
         return;

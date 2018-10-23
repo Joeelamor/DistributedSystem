@@ -14,4 +14,6 @@ public interface Conn {
   void broadcast(Serializable data);
 
   Serializable getMessage();
+
+  boolean hasConverged();
 }

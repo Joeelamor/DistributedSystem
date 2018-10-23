@@ -1,27 +1,43 @@
 package conn;
 
 import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicLong;
 
 class Message implements Serializable {
 
+  private static AtomicLong SequenceCounter = new AtomicLong();
   Type type;
   Serializable dataload;
-  private int seq;
+  private long seq;
   private int senderId;
   private int originatorId;
   private int receiverId;
+
   public Message(Type type, int senderId, Serializable dataload) {
+    this.seq = SequenceCounter.getAndIncrement();
     this.type = type;
     this.senderId = senderId;
+    this.originatorId = senderId;
     this.dataload = dataload;
   }
 
   public Message(Type type, int senderId, int originatorId, int receiverId, Serializable dataload) {
+    this.seq = SequenceCounter.getAndIncrement();
     this.type = type;
     this.senderId = senderId;
     this.originatorId = originatorId;
     this.receiverId = receiverId;
     this.dataload = dataload;
+  }
+
+  @Override
+  public String toString() {
+    return String.format("%s\tMessage { sender=%02d, origin=%02d, target=%02d, dataload=%s, seq=%d }",
+      type, senderId, originatorId, receiverId, dataload, seq);
+  }
+
+  public long getSeq() {
+    return seq;
   }
 
   public Type getType() {
@@ -65,6 +81,6 @@ class Message implements Serializable {
   }
 
   public enum Type {
-    INIT, HELLO, TC, DATA, BROADCAST
+    INIT, HELLO, TC, ACK, BCAST
   }
 }

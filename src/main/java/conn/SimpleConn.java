@@ -8,9 +8,7 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -85,7 +83,7 @@ public class SimpleConn implements Conn {
 
   @Override
   public void send(int id, Serializable data) {
-    Message message = new Message(Message.Type.DATA, nodeId, nodeId, id, data);
+    Message message = new Message(Message.Type.ACK, nodeId, nodeId, id, data);
     send(id, message);
   }
 
@@ -95,11 +93,12 @@ public class SimpleConn implements Conn {
 
   @Override
   public void broadcast(Serializable data) {
-    Message message = new Message(Message.Type.BROADCAST, nodeId, nodeId, -1, data);
+    Message message = new Message(Message.Type.BCAST, nodeId, nodeId, -1, data);
     broadcast(message);
   }
 
   void broadcast(Message message) {
+    System.out.println("Send\t\t" + message);
     broadcast(message, -1);
   }
 
@@ -113,6 +112,11 @@ public class SimpleConn implements Conn {
   @Override
   public Serializable getMessage() {
     return nextMessage().getDataload();
+  }
+
+  @Override
+  public boolean hasConverged() {
+    return true;
   }
 
   Message nextMessage() {
@@ -144,7 +148,7 @@ public class SimpleConn implements Conn {
           senderThread.start();
           senderMap.put(message.getSenderId(), sender);
 
-          System.out.println(message);
+          System.out.println("Received\t" + message);
           new Thread(new Receiver(inputStream, messageQueue)).start();
         }
       } catch (IOException e) {
