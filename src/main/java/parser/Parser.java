@@ -14,7 +14,7 @@ public class Parser {
     public Pair<String, Integer> host;
     public Map<Integer, Pair<String, Integer>> neighbors;
 
-    public HostInfo(int nodeId, Pair<String, Integer> host, Map<Integer, Pair<String, Integer>> neighbors) {
+    HostInfo(int nodeId, Pair<String, Integer> host, Map<Integer, Pair<String, Integer>> neighbors) {
       this.nodeId = nodeId;
       this.host = host;
       this.neighbors = neighbors;

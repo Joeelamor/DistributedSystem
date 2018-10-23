@@ -1,4 +1,3 @@
-import conn.Conn;
 import conn.OLSRConn;
 import org.apache.commons.lang3.tuple.Pair;
 import parser.Parser;
@@ -23,12 +22,12 @@ public class Node {
     this.totalNumber = totalNumber;
   }
 
-  public void init() throws IOException {
+  private void init() throws IOException {
     this.conn = new OLSRConn(this.nodeId, this.port, totalNumber);
     this.conn.connect(this.connectionList);
   }
 
-  public void start() throws InterruptedException {
+  private void start() throws InterruptedException {
     while (!conn.hasConverged()) {
       Thread.sleep(5000L);
     }

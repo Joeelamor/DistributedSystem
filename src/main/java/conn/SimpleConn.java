@@ -13,11 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class SimpleConn implements Conn {
-  ConcurrentHashMap<Integer, Sender> senderMap;
+  private ConcurrentHashMap<Integer, Sender> senderMap;
   int nodeId;
   private ConcurrentLinkedQueue<Message> messageQueue;
 
-  public SimpleConn(int nodeId, int port) throws IOException {
+  SimpleConn(int nodeId, int port) throws IOException {
     ServerSocket listener = new ServerSocket(port);
 
     this.nodeId = nodeId;
