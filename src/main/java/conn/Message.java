@@ -11,14 +11,14 @@ import java.util.concurrent.atomic.AtomicLong;
 class Message implements Serializable {
 
   private static AtomicLong SequenceCounter = new AtomicLong();
-  Type type;
-  Serializable dataload;
+  private Type type;
   private long seq;
   private int senderId;
   private int originatorId;
   private int receiverId;
+  Serializable dataload;
 
-  public Message(Type type, int senderId, Serializable dataload) {
+  Message(Type type, int senderId, Serializable dataload) {
     this.seq = SequenceCounter.getAndIncrement();
     this.type = type;
     this.senderId = senderId;
@@ -26,7 +26,7 @@ class Message implements Serializable {
     this.dataload = dataload;
   }
 
-  public Message(Type type, int senderId, int originatorId, int receiverId, Serializable dataload) {
+  Message(Type type, int senderId, int originatorId, int receiverId, Serializable dataload) {
     this.seq = SequenceCounter.getAndIncrement();
     this.type = type;
     this.senderId = senderId;
@@ -41,51 +41,35 @@ class Message implements Serializable {
       type, senderId, originatorId, receiverId, dataload, seq);
   }
 
-  public long getSeq() {
+  long getSeq() {
     return seq;
   }
 
-  public Type getType() {
+  Type getType() {
     return type;
   }
 
-  public void setType(Type type) {
-    this.type = type;
-  }
-
-  public int getSenderId() {
+  int getSenderId() {
     return senderId;
   }
 
-  public void setSenderId(int senderId) {
+  void setSenderId(int senderId) {
     this.senderId = senderId;
   }
 
-  public int getReceiverId() {
+  int getReceiverId() {
     return receiverId;
   }
 
-  public void setReceiverId(int receiverId) {
-    this.receiverId = receiverId;
-  }
-
-  public int getOriginatorId() {
+  int getOriginatorId() {
     return originatorId;
   }
 
-  public void setOriginatorId(int originatorId) {
-    this.originatorId = originatorId;
-  }
-
-  public Serializable getDataload() {
+  Serializable getDataload() {
     return dataload;
   }
 
-  public void setDataload(Serializable dataload) {
-    this.dataload = dataload;
-  }
-
-  public enum Type {
+  enum Type {
     INIT, HELLO, TC, ACK, BCAST
   }
 }

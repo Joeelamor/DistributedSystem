@@ -8,7 +8,7 @@ public class Sender implements Runnable {
   private ConcurrentLinkedQueue<Message> queue;
   private ObjectOutputStream outputStream;
 
-  public Sender(ObjectOutputStream outputStream) {
+  Sender(ObjectOutputStream outputStream) {
     this.outputStream = outputStream;
     queue = new ConcurrentLinkedQueue<>();
   }
@@ -29,7 +29,7 @@ public class Sender implements Runnable {
     }
   }
 
-  public void send(Message message) {
+  void send(Message message) {
     this.queue.offer(message);
   }
 }

@@ -180,7 +180,7 @@ public class OLSRConn extends SimpleConn {
       public void run() {
         while (true) {
           Message message = OLSRConn.super.nextMessage();
-          switch (message.type) {
+          switch (message.getType()) {
             case ACK:
               OLSRConn.this.processRcvdACKMsg(message);
               break;

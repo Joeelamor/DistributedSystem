@@ -9,7 +9,7 @@ public class Receiver implements Runnable {
   private ObjectInputStream inputStream;
   private ConcurrentLinkedQueue<Message> queue;
 
-  public Receiver(ObjectInputStream inputStream, ConcurrentLinkedQueue<Message> queue) {
+  Receiver(ObjectInputStream inputStream, ConcurrentLinkedQueue<Message> queue) {
     this.inputStream = inputStream;
     this.queue = queue;
   }
