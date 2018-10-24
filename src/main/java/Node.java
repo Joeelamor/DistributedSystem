@@ -40,7 +40,8 @@ public class Node {
     System.out.println();
     System.out.println("============= network has converged =============");
     System.out.println("Node: " + nodeId);
-    System.out.println("tree neighbors set: " + conn.getTreeNeighbor());
+    System.out.println("MPR (tree neighbors) set: " + conn.getMultiPointRelays());
+    System.out.println("MPR selector set: " + conn.getMPRSelectors());
     System.out.println("routing table: " + conn.getRoutingTable());
     System.out.println("=================================================");
     System.out.println();
@@ -63,7 +64,7 @@ public class Node {
           System.out.println();
           System.out.println("\n=================================================");
           System.out.printf("Node %d's tree neighbors set: %s\n",
-            nodeId, conn.getTreeNeighbor());
+            nodeId, conn.getMultiPointRelays());
           System.out.println("=================================================");
           System.out.println();
           continue;

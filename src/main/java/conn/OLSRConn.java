@@ -138,8 +138,18 @@ public class OLSRConn extends SimpleConn {
    *
    * @return All tree neighbors as a set.
    */
-  public HashSet<Integer> getTreeNeighbor() {
+  public HashSet<Integer> getMultiPointRelays() {
     return new HashSet<>(MultiPointRelays);
+  }
+
+  /**
+   * Return the MPR, i.e., the tree neighbor to forward the broadcast message
+   * of current node.
+   *
+   * @return All tree neighbors as a set.
+   */
+  public HashSet<Integer> getMPRSelectors() {
+    return new HashSet<>(MPRSelectors);
   }
 
   /**
