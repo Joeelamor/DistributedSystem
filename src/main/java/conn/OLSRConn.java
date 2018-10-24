@@ -226,7 +226,7 @@ public class OLSRConn extends SimpleConn {
 
   @Override
   public void send(int id, Serializable data) {
-    Message message = new Message(Message.Type.ACK, nodeId, nodeId, id, data);
+    Message message = new Message(Message.Type.DATA, nodeId, nodeId, id, data);
     send(getNextHop(message.getReceiverId()), message);
   }
 
@@ -253,6 +253,19 @@ public class OLSRConn extends SimpleConn {
   @Override
   public boolean hasConverged() {
     return converge;
+  }
+
+  public HashMap<Integer, Pair<Integer, Integer>> getRoutingTable() {
+    return new HashMap<>(RoutingTable);
+  }
+
+  /**
+   * Reply ACK to broadcast message
+   * @param id
+   */
+  public void sendACK(int id) {
+    Message message = new Message(Message.Type.ACK, nodeId, nodeId, id, null);
+    send(getNextHop(message.getReceiverId()), message);
   }
 
   /**
@@ -403,8 +416,8 @@ public class OLSRConn extends SimpleConn {
     LastMsgSeq.put(origin, message.getSeq());
     System.out.println("Received\t" + message);
     forwardBroadcast(message);
-    System.out.println("Reply to " + message.getOriginatorId());
-    send(message.getOriginatorId(), "receive from node " + nodeId);
+    System.out.println("Reply ACK to " + message.getOriginatorId());
+    sendACK(message.getOriginatorId());
   }
 
   /**

@@ -2,8 +2,10 @@ import conn.OLSRConn;
 import org.apache.commons.lang3.tuple.Pair;
 import parser.Parser;
 
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -34,15 +36,56 @@ public class Node {
 
     Thread.sleep(5000L);
     System.out.println();
+    System.out.println();
+    System.out.println();
     System.out.println("============= network has converged =============");
-    System.out.println("set tree neighbors: " + conn.getTreeNeighbor());
+    System.out.println("Node: " + nodeId);
+    System.out.println("tree neighbors set: " + conn.getTreeNeighbor());
+    System.out.println("routing table: " + conn.getRoutingTable());
     System.out.println("=================================================");
     System.out.println();
+    System.out.println();
+    System.out.println();
 
-    while (true) {
-      Thread.sleep(5000L);
-      conn.broadcast("Node " + nodeId + " send a broadcast msg");
-      Thread.sleep(5000L);
+//    for (int i = 0; i < 5; i++) {
+//      Thread.sleep(5000L);
+//      conn.broadcast("Node " + nodeId + " send a broadcast msg");
+//      Thread.sleep(5000L);
+//    }
+
+    BufferedReader br = null;
+    try {
+      br = new BufferedReader(new InputStreamReader(System.in));
+      while (true) {
+        System.out.print("Enter something:\n");
+        String input = br.readLine();
+        if (input.startsWith("mpr")) {
+          System.out.println();
+          System.out.println("\n=================================================");
+          System.out.printf("Node %d's tree neighbors set: %s\n",
+            nodeId, conn.getTreeNeighbor());
+          System.out.println("=================================================");
+          System.out.println();
+          continue;
+        }
+
+        if ("q".equals(input)) {
+          System.out.println("Exit!");
+          System.exit(0);
+        }
+        System.out.println("Broadcast message: " + input);
+        conn.broadcast(input);
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      if (br != null) {
+        try {
+          br.close();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
     }
   }
 

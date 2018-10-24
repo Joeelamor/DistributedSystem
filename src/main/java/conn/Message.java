@@ -70,6 +70,6 @@ class Message implements Serializable {
   }
 
   enum Type {
-    INIT, HELLO, TC, ACK, BCAST
+    INIT, HELLO, TC, ACK, BCAST, DATA
   }
 }
